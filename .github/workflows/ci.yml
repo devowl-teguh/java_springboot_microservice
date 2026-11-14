@@ -18,7 +18,7 @@ jobs:
           cache: maven
       # Surefire's default includes skip *IT classes, so no Docker/Postgres/Kafka is needed here.
       - run: mvn -B test
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: surefire-reports
@@ -37,7 +37,7 @@ jobs:
           java-version: '21'
           cache: maven
       - run: mvn -B package -DskipTests
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: transactions-jar
           path: target/*.jar
