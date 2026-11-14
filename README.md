@@ -21,8 +21,8 @@ flowchart LR
 - **Transactional outbox:** the transaction row and its outbox event commit atomically, so no event is lost if Kafka is down.
 - **At-least-once delivery, idempotent processing:** duplicates are safe because processing only sets the same final status.
 - **Dead-letter topic:** malformed or unknown IDs are dead-lettered immediately; transient failures back off exponentially first, so one bad message never blocks a partition.
-- **Errors as RFC 7807 ProblemDetail:** 400 validation, 404 not found, 409 duplicate invoice.
-- **Tests:** Mockito unit tests run in CI; `TransactionFlowIT` runs the full flow against real PostgreSQL and Kafka via Testcontainers.
+- **Errors as RFC 7807 ProblemDetail:** 400 validation (with a per-field `errors` map), malformed JSON or bad UUID, 404 not found, 409 duplicate invoice.
+- **Tests:** Mockito unit tests and `@WebMvcTest` API tests run in CI; `TransactionFlowIT` runs the full flow against real PostgreSQL and Kafka via Testcontainers.
 
 **Stack:** Java 21 · Spring Boot 3.4 · Spring Data JPA · Spring Kafka · PostgreSQL · Flyway · JUnit 5 · Mockito · Testcontainers · GitHub Actions
 
