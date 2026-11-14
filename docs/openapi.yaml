@@ -1,0 +1,167 @@
+openapi: 3.1.0
+info:
+  description: Records transactions and processes them asynchronously via a transactional
+    outbox and Kafka. Creation returns 202 with status PENDING; poll GET until SUCCESS.
+    Errors are RFC 7807 ProblemDetail (application/problem+json).
+  title: Transaction API
+  version: v1
+servers:
+- description: Default server
+  url: http://localhost:8080
+tags:
+- description: Create transactions and track their asynchronous processing
+  name: Transactions
+paths:
+  /transactions:
+    post:
+      description: "Stores the transaction as PENDING and queues it for asynchronous\
+        \ processing. Poll GET /transactions/{id} until the status becomes SUCCESS."
+      operationId: createTransaction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequest"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+          description: Accepted; processing is asynchronous
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Validation failed or malformed JSON; `errors` maps field to
+            message
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Invoice already exists
+      summary: Create a transaction
+      tags:
+      - Transactions
+  /transactions/{id}:
+    get:
+      operationId: getTransaction
+      parameters:
+      - description: Transaction ID returned on creation
+        example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+          description: Transaction found
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: ID is not a valid UUID
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Transaction not found
+      summary: Get a transaction by ID
+      tags:
+      - Transactions
+components:
+  schemas:
+    CreateRequest:
+      type: object
+      description: Request to create a transaction
+      properties:
+        amount:
+          type: number
+          description: Positive amount with at most 2 decimal places
+          example: 12500.0
+          minimum: 0.01
+        invoice:
+          type: string
+          description: Unique invoice number; reusing one returns 409
+          example: INV-001
+          maxLength: 100
+          minLength: 0
+        phoneNumber:
+          type: string
+          description: "Customer phone number, stored as provided"
+          example: "08123456789"
+          maxLength: 30
+          minLength: 0
+      required:
+      - amount
+      - invoice
+      - phoneNumber
+    ProblemDetail:
+      type: object
+      description: RFC 7807 problem details
+      properties:
+        detail:
+          type: string
+          example: Request validation failed
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          description: Field name to validation message; present only on validation
+            errors
+          example:
+            amount: must be greater than or equal to 0.01
+        instance:
+          type: string
+          format: uri
+          example: /transactions
+        status:
+          type: integer
+          format: int32
+          example: 400
+        title:
+          type: string
+          example: Bad Request
+        type:
+          type: string
+          format: uri
+          example: about:blank
+    TransactionResponse:
+      type: object
+      description: A transaction and its processing status
+      properties:
+        amount:
+          type: number
+          example: 12500.0
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-14T10:15:30Z
+        id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        invoice:
+          type: string
+          example: INV-001
+        phoneNumber:
+          type: string
+          example: "08123456789"
+        status:
+          type: string
+          description: "PENDING until processed, then SUCCESS"
+          enum:
+          - PENDING
+          - SUCCESS
+          example: PENDING

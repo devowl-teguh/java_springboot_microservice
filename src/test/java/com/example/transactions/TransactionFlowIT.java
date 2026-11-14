@@ -54,6 +54,14 @@ class TransactionFlowIT {
     }
 
     @Test
+    void openApiSpecAndSwaggerUiAreServed() {
+        var spec = http.getForEntity("/v3/api-docs", String.class);
+        assertThat(spec.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(spec.getBody()).contains("\"createTransaction\"", "\"getTransaction\"");
+        assertThat(http.getForEntity("/swagger-ui/index.html", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void unknownIdReturns404() {
         assertThat(http.getForEntity("/transactions/" + UUID.randomUUID(), String.class).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);

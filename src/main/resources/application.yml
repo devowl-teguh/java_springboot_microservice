@@ -1,4 +1,7 @@
 spring:
+  config:
+    # Local runs: KEY=value lines in ./.env (gitignored) are loaded as properties. Real environment variables win.
+    import: optional:file:.env[.properties]
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -23,3 +26,14 @@ spring:
 app:
   kafka:
     topic: ${KAFKA_TOPIC:transactions-v1}
+  openapi:
+    server-url: ${OPENAPI_SERVER_URL:http://localhost:8080}
+springdoc:
+  # Spec at /v3/api-docs (JSON) and /v3/api-docs.yaml; Swagger UI at /swagger-ui.html.
+  # The API has no auth yet, so set API_DOCS_ENABLED=false where the docs must not be public.
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:true}
+  default-produces-media-type: application/json
+  writer-with-order-by-keys: true

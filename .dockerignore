@@ -1,0 +1,12 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+.agents/
+.claude/
+*.iml
+.DS_Store
+# Secrets are passed at runtime via env_file, never baked into the image.
+.env
+.env.*
