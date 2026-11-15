@@ -34,6 +34,19 @@ class ApiLambdaHandlerIT {
         return out.toString();
     }
 
+    @Test void swaggerUiAssetsArriveIntact() throws Exception {
+        String response = call(new AwsProxyRequestBuilder("/swagger-ui/swagger-ui-bundle.js", "GET"));
+        String body = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("body").asText();
+        // Compare with the original file from the swagger-ui webjar: any re-encoding changes multi-byte characters.
+        assertThat(body).isEqualTo(locateBundle());
+    }
+
+    private static String locateBundle() throws Exception {
+        var resolver = new org.springframework.core.io.support.PathMatchingResourcePatternResolver();
+        var bundle = resolver.getResources("classpath*:META-INF/resources/webjars/swagger-ui/*/swagger-ui-bundle.js")[0];
+        return new String(bundle.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     @Test void createThenGetThroughLambda() throws Exception {
         String created = call(new AwsProxyRequestBuilder("/transactions", "POST")
                 .header("Content-Type", "application/json")

@@ -31,7 +31,10 @@ flowchart LR
 
 ## Deploy free on AWS (Lambda + SQS)
 
-**Live demo (AWS Lambda, us-east-1):** https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws/transactions
+**Live demo (AWS Lambda, us-east-1):**
+- **Try it in the browser:** [Swagger UI](https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws/swagger-ui/index.html). Open `POST /transactions`, click **Try it out**, change the invoice to something unique, and **Execute**. Then use the returned `id` in `GET /transactions/{id}`; the status changes from `PENDING` to `SUCCESS` within about a minute.
+- **API base URL:** `https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws`
+- The first request after a quiet period takes a few seconds while Lambda starts.
 
 The `aws` Spring profile replaces Kafka with SQS so the whole service fits in the AWS free tier.
 

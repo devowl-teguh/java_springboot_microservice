@@ -1,6 +1,7 @@
 package com.example.transactions.lambda;
 
 import com.amazonaws.serverless.exceptions.ContainerInitializationException;
+import com.amazonaws.serverless.proxy.internal.LambdaContainerHandler;
 import com.amazonaws.serverless.proxy.model.HttpApiV2ProxyRequest;
 import com.amazonaws.serverless.proxy.spring.SpringBootLambdaContainerHandler;
 import com.amazonaws.services.lambda.runtime.Context;
@@ -14,6 +15,9 @@ import java.io.OutputStream;
 public class ApiLambdaHandler implements RequestStreamHandler {
     private static final SpringBootLambdaContainerHandler<HttpApiV2ProxyRequest, ?> handler;
     static {
+        // Responses without a charset (e.g. Swagger UI's JavaScript) are otherwise re-encoded as ISO-8859-1,
+        // which corrupts multi-byte characters.
+        LambdaContainerHandler.getContainerConfig().setDefaultContentCharset("UTF-8");
         try { handler = SpringBootLambdaContainerHandler.getHttpApiV2ProxyHandler(TransactionApplication.class, "aws"); }
         catch (ContainerInitializationException e) { throw new IllegalStateException("Could not start Spring Boot", e); }
     }

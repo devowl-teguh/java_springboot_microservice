@@ -12,3 +12,6 @@ spring:
 app:
   sqs:
     queue-url: ${SQS_QUEUE_URL}
+  openapi:
+    # Relative server URL: Swagger UI "Try it out" calls the same Function URL that served the page.
+    server-url: ${OPENAPI_SERVER_URL:/}
