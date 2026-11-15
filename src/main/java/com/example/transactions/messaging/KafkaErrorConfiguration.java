@@ -10,6 +10,7 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 @Configuration
+@org.springframework.context.annotation.Profile("!aws")
 public class KafkaErrorConfiguration {
     @Bean
     DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> template) {

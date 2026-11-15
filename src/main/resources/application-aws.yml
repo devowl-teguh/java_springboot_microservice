@@ -1,0 +1,14 @@
+# AWS mode: Lambda + SQS. Kafka is not used.
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  datasource:
+    hikari:
+      # Each Lambda instance holds its own pool; keep it tiny and use the database's pooled endpoint.
+      maximum-pool-size: 2
+      minimum-idle: 0
+  main:
+    banner-mode: off
+app:
+  sqs:
+    queue-url: ${SQS_QUEUE_URL}

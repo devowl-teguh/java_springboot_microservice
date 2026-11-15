@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Transaction API - free-tier AWS mode (Lambda + SQS + EventBridge Scheduler)
+
+Parameters:
+  DbUrl:
+    Type: String
+    NoEcho: true
+    Description: JDBC URL of a Postgres database, e.g. Neon pooled endpoint with ?sslmode=require
+  DbUsername:
+    Type: String
+    NoEcho: true
+  DbPassword:
+    Type: String
+    NoEcho: true
+  BudgetEmail:
+    Type: String
+    Description: Email that receives an alert if monthly AWS cost passes 1 USD
+
+Globals:
+  Function:
+    Runtime: java21
+    Architectures: [arm64]
+    MemorySize: 1024
+    Timeout: 30
+    CodeUri: target/transactions-lambda.zip
+    AutoPublishAlias: live
+    SnapStart:
+      ApplyOn: PublishedVersions
+    Environment:
+      Variables:
+        SPRING_PROFILES_ACTIVE: aws
+        DB_URL: !Ref DbUrl
+        DB_USERNAME: !Ref DbUsername
+        DB_PASSWORD: !Ref DbPassword
+        SQS_QUEUE_URL: !Ref TransactionsQueue
+        JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
+
+Resources:
+  TransactionsDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600   # 14 days to inspect failed messages
+
+  TransactionsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 180            # 6x the consumer timeout, as AWS recommends
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransactionsDlq.Arn
+        maxReceiveCount: 3
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.example.transactions.lambda.ApiLambdaHandler::handleRequest
+      FunctionUrlConfig:
+        AuthType: NONE                  # public demo endpoint
+
+  OutboxFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.example.transactions.lambda.OutboxLambdaHandler::handleRequest
+      Timeout: 60
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt TransactionsQueue.QueueName
+      Events:
+        EveryMinute:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 minute)
+
+  ConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.example.transactions.lambda.SqsConsumerLambdaHandler::handleRequest
+      Events:
+        Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TransactionsQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes: [ReportBatchItemFailures]
+
+  CostAlarm:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: transaction-api-monthly
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: { Amount: 1, Unit: USD }
+      NotificationsWithSubscribers:
+        - Notification: { NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 100 }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
+        - Notification: { NotificationType: FORECASTED, ComparisonOperator: GREATER_THAN, Threshold: 100 }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
+
+Outputs:
+  ApiUrl:
+    Description: Public URL of the API
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  DeadLetterQueueUrl:
+    Value: !Ref TransactionsDlq

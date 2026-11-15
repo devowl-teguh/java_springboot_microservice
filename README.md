@@ -25,7 +25,60 @@ flowchart LR
 - **Errors as RFC 7807 ProblemDetail:** 400 validation (with a per-field `errors` map), malformed JSON or bad UUID, 404 not found, 409 duplicate invoice.
 - **Tests:** Mockito unit tests and `@WebMvcTest` API tests run in CI; `TransactionFlowIT` runs the full flow against real PostgreSQL and Kafka via Testcontainers.
 
-**Stack:** Java 21 · Spring Boot 3.4 · Spring Data JPA · Spring Kafka · PostgreSQL · Flyway · springdoc-openapi · JUnit 5 · Mockito · Testcontainers · GitHub Actions
+- **Two runtimes, one codebase:** messaging sits behind a `TransactionEventPublisher` port. The default profile uses Kafka; the `aws` profile swaps in SQS and runs on AWS Lambda for free.
+
+**Stack:** Java 21 · Spring Boot 3.4 · Spring Data JPA · Spring Kafka · PostgreSQL · Flyway · springdoc-openapi · JUnit 5 · Mockito · Testcontainers · GitHub Actions · AWS Lambda · SQS · AWS SAM
+
+## Deploy free on AWS (Lambda + SQS)
+
+The `aws` Spring profile replaces Kafka with SQS so the whole service fits in the AWS free tier.
+
+```mermaid
+flowchart LR
+    C[Client] -->|Function URL| API[ApiFunction<br/>Spring MVC on Lambda]
+    API --> DB[(Postgres<br/>Neon free tier)]
+    S[EventBridge Scheduler<br/>every minute] --> O[OutboxFunction]
+    O -->|poll outbox| DB
+    O --> Q[[SQS queue]]
+    Q --> CON[ConsumerFunction]
+    CON -->|status = SUCCESS| DB
+    Q -.->|after 3 failed receives| DLQ[[SQS dead-letter queue]]
+```
+
+| | Kafka mode (default) | AWS mode (`aws` profile) |
+|---|---|---|
+| API | Spring Boot on port 8080 | `ApiLambdaHandler` behind a Lambda Function URL |
+| Outbox relay | `@Scheduled` every second | `OutboxLambdaHandler`, EventBridge Scheduler every minute |
+| Consumer | `@KafkaListener` | `SqsConsumerLambdaHandler` with partial batch failures |
+| Dead letters | `transactions-v1.DLT` topic | SQS dead-letter queue (`maxReceiveCount: 3`) |
+
+**Expected cost:** about $0. Lambda, SQS and EventBridge Scheduler stay within their always-free monthly allowances at demo traffic, and Neon has a free Postgres plan. The template also creates an AWS Budget that emails you if monthly cost passes $1.
+
+**Trade-offs:** the first request after idle time is slower (SnapStart reduces Spring's cold start), and a transaction takes up to about a minute to reach `SUCCESS` because the outbox runs once a minute.
+
+### Steps
+
+1. Create a free [Neon](https://neon.tech) project and copy its **pooled** connection string as a JDBC URL, e.g. `jdbc:postgresql://HOST-pooler.REGION.aws.neon.tech/neondb?sslmode=require`.
+2. Install and configure the tools:
+   ```sh
+   brew install awscli aws-sam-cli
+   aws configure
+   ```
+3. Build the Lambda package and deploy:
+   ```sh
+   mvn -Plambda package -DskipTests
+   sam deploy --guided
+   ```
+   `sam deploy --guided` asks for `DbUrl`, `DbUsername`, `DbPassword` and `BudgetEmail`, then prints `ApiUrl`. Confirm the budget subscription email AWS sends you.
+4. Try it:
+   ```sh
+   curl -X POST "$API_URL/transactions" -H 'Content-Type: application/json' \
+     -d '{"invoice":"INV-001","amount":12500.00,"phoneNumber":"08123456789"}'
+   ```
+
+The Function URL is public with no authentication, which is fine for a demo but means anyone with the URL can create rows. Remove the stack with `sam delete` when you no longer need it.
+
+Tests for this mode: `SqsBatchProcessorTest` and `OutboxPublisherTest` (unit), `AwsModeIT` (aws profile against real Postgres with SQS mocked) and `ApiLambdaHandlerIT` (Function URL events through the real Lambda handler).
 
 ## Run locally (macOS)
 

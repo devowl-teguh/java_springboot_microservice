@@ -6,3 +6,5 @@ target/
 .vscode/
 .DS_Store
 .env
+.aws-sam/
+samconfig.toml
