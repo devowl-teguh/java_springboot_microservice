@@ -8,3 +8,6 @@ target/
 .env
 .aws-sam/
 samconfig.toml
+.neon
+node_modules/
+.env.local

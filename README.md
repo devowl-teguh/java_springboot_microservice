@@ -31,6 +31,8 @@ flowchart LR
 
 ## Deploy free on AWS (Lambda + SQS)
 
+**Live demo (AWS Lambda, us-east-1):** https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws/transactions
+
 The `aws` Spring profile replaces Kafka with SQS so the whole service fits in the AWS free tier.
 
 ```mermaid
@@ -64,12 +66,16 @@ flowchart LR
    brew install awscli aws-sam-cli
    aws configure
    ```
-3. Build the Lambda package and deploy:
+3. Build and deploy. Either let the script read your Neon connection from `.env.local` (written by `neon init`, gitignored) and run SAM for you:
+   ```sh
+   scripts/deploy-aws.sh you@example.com
+   ```
+   or run SAM yourself and answer the prompts for `DbUrl`, `DbUsername`, `DbPassword` and `BudgetEmail`:
    ```sh
    mvn -Plambda package -DskipTests
    sam deploy --guided
    ```
-   `sam deploy --guided` asks for `DbUrl`, `DbUsername`, `DbPassword` and `BudgetEmail`, then prints `ApiUrl`. Confirm the budget subscription email AWS sends you.
+   Both print `ApiUrl`. Deploy to the same AWS region as your database.
 4. Try it:
    ```sh
    curl -X POST "$API_URL/transactions" -H 'Content-Type: application/json' \
