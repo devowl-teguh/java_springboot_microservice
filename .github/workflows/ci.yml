@@ -3,7 +3,9 @@ name: CI/CD
 on:
   push:
     branches: [main]
+    paths-ignore: ['web/**', 'docs/**/*.md', '*.md']
   pull_request:
+    paths-ignore: ['web/**', 'docs/**/*.md', '*.md']
 
 jobs:
   unit-tests:

@@ -31,6 +31,8 @@ flowchart LR
 
 ## Deploy free on AWS (Lambda + SQS)
 
+**Demo website:** the [`web/`](web/) folder is a Next.js site where you can create a transaction and watch it move from `PENDING` to `SUCCESS` on a live timeline. It talks to the Lambda API through its own server routes. Vercel link: coming soon.
+
 **Live demo (AWS Lambda, us-east-1):**
 - **Try it in the browser:** [Swagger UI](https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws/swagger-ui/index.html). Open `POST /transactions`, click **Try it out**, change the invoice to something unique, and **Execute**. Then use the returned `id` in `GET /transactions/{id}`; the status changes from `PENDING` to `SUCCESS` within about a minute.
 - **API base URL:** `https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws`

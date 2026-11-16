@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* Neutral surfaces with a slight blue bias; one blue accent; semantic amber/green/red for status. */
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --sunk: #f0f2f5;
+  --fg: #16181d;
+  --muted: #5d6474;
+  --faint: #8a91a1;
+  --line: #e1e4ea;
+  --accent: #2759d6;
+  --on-accent: #ffffff;
+  --accent-soft: #e8eefc;
+  --pending: #8a5a00;
+  --pending-soft: #fdf1d8;
+  --success: #17703f;
+  --success-soft: #e1f4e8;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1015;
+    --panel: #161920;
+    --sunk: #1c2029;
+    --fg: #e7e9ee;
+    --muted: #a0a7b6;
+    --faint: #737b8c;
+    --line: #2a2f3a;
+    --accent: #6d95f5;
+    --on-accent: #0e1015;
+    --accent-soft: #1b2643;
+    --pending: #f2c260;
+    --pending-soft: #3a2e14;
+    --success: #5fd08f;
+    --success-soft: #133222;
+    --danger: #f2877e;
+    --danger-soft: #3b1714;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-sunk: var(--sunk);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg outline-none transition placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-panel px-4 py-2 text-sm font-medium text-fg transition hover:bg-sunk focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-on-accent hover:bg-accent hover:brightness-110;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-panel;
+  }
+}

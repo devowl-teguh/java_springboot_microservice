@@ -32,7 +32,7 @@ so `APP_DB_URL` overrides `DB_URL` there. Tests also load `.env`, so keep test a
 
 | Layer | Files | Notes |
 |---|---|---|
-| `api` | `TransactionController`, `ApiExceptionHandler`, `dto/CreateRequest`, `dto/TransactionResponse` | `POST /transactions` → 202, `GET /transactions/{id}`. Entities never leave via the API; map through records. |
+| `api` | `TransactionController`, `ApiExceptionHandler`, `dto/CreateRequest`, `dto/TransactionResponse`, `dto/TransactionSummary` | `POST /transactions` → 202, `GET /transactions/{id}` (includes `publishedAt`/`completedAt`), `GET /transactions?limit=1..50` (newest first, phone numbers masked). Entities never leave via the API; map through records. |
 | `domain` | `Transaction`, `Outbox`, repositories, `TransactionService`, exceptions | Business logic in the service. `status` is a plain `String` (`PENDING`/`SUCCESS`), not an enum. |
 | `messaging` | `OutboxPublisher`, `TransactionConsumer`, `KafkaErrorConfiguration` | Publisher is `@Scheduled` (`OUTBOX_DELAY_MS`, default 1000) and locks 100 rows with `FOR UPDATE SKIP LOCKED`. |
 | `resources` | `application.yml`, `db/migration/V1__transactions.sql` | Schema `transaction_service`; Hibernate `ddl-auto: validate`, so every entity change needs a Flyway migration (`V2__...`). |
@@ -66,6 +66,14 @@ raw `ProblemDetail.class` documents a misleading nested `properties` field.
 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (required), `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`),
 `KAFKA_TOPIC`, `OUTBOX_DELAY_MS`, `OPENAPI_SERVER_URL` (default `http://localhost:8080`),
 `API_DOCS_ENABLED` (default `true`; turns spec and Swagger UI off). Never commit credentials; `.env` is gitignored.
+
+## Demo website (`web/`)
+
+Next.js 16 app (App Router, `cacheComponents` on, Tailwind 4, Zod, Vitest); see `web/README.md` and `web/AGENTS.md`
+(Next 16 has breaking changes: read `web/node_modules/next/dist/docs/` before changing it). The browser calls only
+`web/app/api/transactions/*`, which proxies to `API_BASE_URL` (the Lambda Function URL). Its own CI is
+`.github/workflows/web.yml` (runs only for `web/**`); the Java workflow ignores `web/**`. Changing an API response shape
+means updating `web/lib/types.ts` too.
 
 ## Known gaps / candidate next work
 
