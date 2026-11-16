@@ -3,6 +3,7 @@ package com.example.transactions.api;
 import com.example.transactions.api.dto.ApiProblem;
 import com.example.transactions.api.dto.CreateRequest;
 import com.example.transactions.api.dto.TransactionResponse;
+import com.example.transactions.api.dto.TransactionSummary;
 import com.example.transactions.domain.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,6 +12,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +40,17 @@ public class TransactionController {
             content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ApiProblem.class)))
     public TransactionResponse create(@Valid @RequestBody CreateRequest request) {
         return TransactionResponse.from(service.create(request.invoice(), request.amount(), request.phoneNumber()));
+    }
+
+    @GetMapping
+    @Operation(operationId = "listRecentTransactions", summary = "List recent transactions",
+            description = "Newest first. Phone numbers are masked because this list is public.")
+    @ApiResponse(responseCode = "200", description = "Recent transactions")
+    @ApiResponse(responseCode = "400", description = "limit is outside 1..50",
+            content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ApiProblem.class)))
+    public List<TransactionSummary> recent(@Parameter(description = "How many to return (1-50)", example = "10")
+            @RequestParam(defaultValue = "10") @Min(1) @Max(TransactionService.MAX_RECENT) int limit) {
+        return service.recent(limit).stream().map(TransactionSummary::from).toList();
     }
 
     @GetMapping("/{id}")

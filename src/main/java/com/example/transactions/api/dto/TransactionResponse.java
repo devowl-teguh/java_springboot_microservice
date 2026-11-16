@@ -14,9 +14,14 @@ public record TransactionResponse(
         @Schema(example = "08123456789") String phoneNumber,
         @Schema(description = "PENDING until processed, then SUCCESS", allowableValues = {"PENDING", "SUCCESS"},
                 example = "PENDING") String status,
-        @Schema(example = "2026-11-14T10:15:30Z") Instant createdAt) {
+        @Schema(example = "2026-11-14T10:15:30Z") Instant createdAt,
+        @Schema(description = "When the outbox relay handed the event to the broker; null until then",
+                example = "2026-11-14T10:16:00Z", nullable = true) Instant publishedAt,
+        @Schema(description = "When processing finished; null while PENDING",
+                example = "2026-11-14T10:16:02Z", nullable = true) Instant completedAt) {
     public static TransactionResponse from(Transaction transaction) {
         return new TransactionResponse(transaction.getId(), transaction.getInvoice(), transaction.getAmount(),
-                transaction.getPhoneNumber(), transaction.getStatus(), transaction.getCreatedAt());
+                transaction.getPhoneNumber(), transaction.getStatus(), transaction.getCreatedAt(),
+                transaction.getPublishedAt(), transaction.getCompletedAt());
     }
 }

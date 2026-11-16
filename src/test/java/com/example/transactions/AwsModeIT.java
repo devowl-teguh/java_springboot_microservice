@@ -53,6 +53,10 @@ class AwsModeIT {
         var event = new SQSEvent();
         event.setRecords(List.of(message));
         assertThat(processor.process(event).getBatchItemFailures()).isEmpty();
-        assertThat(service.get(tx.getId()).getStatus()).isEqualTo("SUCCESS");
+        var done = service.get(tx.getId());
+        assertThat(done.getStatus()).isEqualTo("SUCCESS");
+        assertThat(done.getPublishedAt()).isNotNull();
+        assertThat(done.getCompletedAt()).isAfterOrEqualTo(done.getPublishedAt());
+        assertThat(service.recent(5)).extracting(t -> t.getId()).contains(tx.getId());
     }
 }

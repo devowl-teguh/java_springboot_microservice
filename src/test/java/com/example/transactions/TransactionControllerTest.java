@@ -14,6 +14,7 @@ import com.example.transactions.domain.Transaction;
 import com.example.transactions.domain.TransactionNotFoundException;
 import com.example.transactions.domain.TransactionService;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,6 +81,35 @@ class TransactionControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("Transaction not found"));
+    }
+
+    @Test void recentListMasksPhoneNumbers() throws Exception {
+        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "08123456789");
+        when(service.recent(10)).thenReturn(List.of(tx));
+        mvc.perform(get("/transactions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].invoice").value("INV-1"))
+                .andExpect(jsonPath("$[0].phoneNumber").value("0812****789"));
+    }
+
+    @Test void recentLimitOutOfRangeReturnsProblemDetail() throws Exception {
+        mvc.perform(get("/transactions").param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON));
+        mvc.perform(get("/transactions").param("limit", "51"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test void detailIncludesProcessingTimestamps() throws Exception {
+        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "0812");
+        tx.complete();
+        when(service.get(tx.getId())).thenReturn(tx);
+        mvc.perform(get("/transactions/" + tx.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.completedAt").exists())
+                .andExpect(jsonPath("$.phoneNumber").value("0812"));
     }
 
     @Test void duplicateInvoiceReturns409ProblemDetail() throws Exception {

@@ -13,6 +13,39 @@ tags:
   name: Transactions
 paths:
   /transactions:
+    get:
+      description: Newest first. Phone numbers are masked because this list is public.
+      operationId: listRecentTransactions
+      parameters:
+      - description: How many to return (1-50)
+        example: 10
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+          maximum: 50
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TransactionSummary"
+          description: Recent transactions
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: limit is outside 1..50
+      summary: List recent transactions
+      tags:
+      - Transactions
     post:
       description: "Stores the transaction as PENDING and queues it for asynchronous\
         \ processing. Poll GET /transactions/{id} until the status becomes SUCCESS."
@@ -144,6 +177,11 @@ components:
         amount:
           type: number
           example: 12500.0
+        completedAt:
+          type: string
+          format: date-time
+          description: When processing finished; null while PENDING
+          example: 2026-11-14T10:16:02Z
         createdAt:
           type: string
           format: date-time
@@ -158,6 +196,12 @@ components:
         phoneNumber:
           type: string
           example: "08123456789"
+        publishedAt:
+          type: string
+          format: date-time
+          description: When the outbox relay handed the event to the broker; null
+            until then
+          example: 2026-11-14T10:16:00Z
         status:
           type: string
           description: "PENDING until processed, then SUCCESS"
@@ -165,3 +209,31 @@ components:
           - PENDING
           - SUCCESS
           example: PENDING
+    TransactionSummary:
+      type: object
+      description: A transaction in the recent list; the phone number is masked because
+        the list is public
+      properties:
+        amount:
+          type: number
+          example: 12500.0
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-14T10:15:30Z
+        id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        invoice:
+          type: string
+          example: INV-001
+        phoneNumber:
+          type: string
+          example: 0812****789
+        status:
+          type: string
+          enum:
+          - PENDING
+          - SUCCESS
+          example: SUCCESS

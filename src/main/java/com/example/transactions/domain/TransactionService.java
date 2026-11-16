@@ -1,6 +1,8 @@
 package com.example.transactions.domain;
 
 import java.math.BigDecimal;
+import java.util.List;
+import org.springframework.data.domain.Limit;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,14 @@ public class TransactionService {
     }
     @Transactional(readOnly = true)
     public Transaction get(UUID id) { return transactions.findById(id).orElseThrow(() -> new TransactionNotFoundException(id)); }
+    public static final int MAX_RECENT = 50;
+
+    /** Newest transactions first; the limit is clamped to 1..MAX_RECENT. */
+    @Transactional(readOnly = true)
+    public List<Transaction> recent(int limit) {
+        return transactions.findAllByOrderByCreatedAtDesc(Limit.of(Math.max(1, Math.min(limit, MAX_RECENT))));
+    }
+
     @Transactional
     public void process(UUID id) { get(id).complete(); }
 }
