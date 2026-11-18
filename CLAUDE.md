@@ -33,9 +33,9 @@ so `APP_DB_URL` overrides `DB_URL` there. Tests also load `.env`, so keep test a
 | Layer | Files | Notes |
 |---|---|---|
 | `api` | `TransactionController`, `ApiExceptionHandler`, `dto/CreateRequest`, `dto/TransactionResponse`, `dto/TransactionSummary` | `POST /transactions` → 202, `GET /transactions/{id}` (includes `publishedAt`/`completedAt`), `GET /transactions?limit=1..50` (newest first, phone numbers masked). Entities never leave via the API; map through records. |
-| `domain` | `Transaction`, `Outbox`, repositories, `TransactionService`, exceptions | Business logic in the service. `status` is a plain `String` (`PENDING`/`SUCCESS`), not an enum. |
+| `domain` | `Transaction`, `TransactionStatus`, `Outbox`, repositories, `TransactionService`, `RequestFingerprint`, exceptions | Business logic in the service. `TransactionStatus` enum: `PENDING` → `SUCCESS` or `FAILED` (terminal; transitions only through `complete()`/`fail()`). |
 | `messaging` | `OutboxPublisher`, `TransactionConsumer`, `KafkaErrorConfiguration` | Publisher is `@Scheduled` (`OUTBOX_DELAY_MS`, default 1000) and locks 100 rows with `FOR UPDATE SKIP LOCKED`. |
-| `resources` | `application.yml`, `db/migration/V1__transactions.sql` | Schema `transaction_service`; Hibernate `ddl-auto: validate`, so every entity change needs a Flyway migration (`V2__...`). |
+| `resources` | `application.yml`, `db/migration/V1__…` to `V3__…` | Schema `transaction_service`; Hibernate `ddl-auto: validate`, so every entity change needs a Flyway migration (`V2__...`). |
 
 ## Invariants to preserve
 
@@ -43,7 +43,14 @@ so `APP_DB_URL` overrides `DB_URL` there. Tests also load `.env`, so keep test a
   invoice fail early, and the error is mapped to `DuplicateInvoiceException` → 409.
 - Event contract v1: the Kafka key and value are both the transaction UUID string, on topic `${KAFKA_TOPIC:transactions-v1}`.
   A breaking change means a new versioned topic/contract.
-- Delivery is at least once, so consumers must stay idempotent.
+- Delivery is at least once, so consumers must stay idempotent: events for terminal (`SUCCESS`/`FAILED`) transactions are ignored.
+- `POST /transactions` accepts an optional `Idempotency-Key` (Design 0001): same key + same body replays the stored transaction
+  with `Idempotent-Replayed: true`; same key + different body is 409. `create` is deliberately not `@Transactional`: a unique
+  violation aborts its transaction, so the re-lookup runs in a new one (`TransactionOperations`). The unique constraint on
+  `idempotency_key` is the source of truth for concurrent requests (`AwsModeIT` covers it).
+- Amounts above `app.processor-limit` (env `APP_PROCESSOR_LIMIT`, default 100,000,000.00) are a simulated business rejection:
+  `FAILED` at once, no retry. Technical failures are marked `FAILED` on the last attempt (Kafka recoverer; SQS
+  `ApproximateReceiveCount` ≥ `app.sqs.max-receive-count`, default 3, which must match `maxReceiveCount` in `template.yaml`) and still dead-lettered.
 - Errors: `IllegalArgumentException` (bad UUID) and `TransactionNotFoundException` go straight to `<topic>.DLT` on the same partition;
   everything else retries with exponential backoff from 1s to 30s, capped at about 5 minutes.
 - The native query in `OutboxRepository` hard-codes the schema name `transaction_service`.
@@ -64,7 +71,7 @@ raw `ProblemDetail.class` documents a misleading nested `properties` field.
 ## Env vars
 
 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (required), `KAFKA_BOOTSTRAP_SERVERS` (default `localhost:9092`),
-`KAFKA_TOPIC`, `OUTBOX_DELAY_MS`, `OPENAPI_SERVER_URL` (default `http://localhost:8080`),
+`KAFKA_TOPIC`, `OUTBOX_DELAY_MS`, `APP_PROCESSOR_LIMIT`, `OPENAPI_SERVER_URL` (default `http://localhost:8080`),
 `API_DOCS_ENABLED` (default `true`; turns spec and Swagger UI off). Never commit credentials; `.env` is gitignored.
 
 ## Demo website (`web/`)
@@ -75,9 +82,14 @@ Next.js 16 app (App Router, `cacheComponents` on, Tailwind 4, Zod, Vitest); see 
 `.github/workflows/web.yml` (runs only for `web/**`); the Java workflow ignores `web/**`. Changing an API response shape
 means updating `web/lib/types.ts` too.
 
+## Design docs and standards
+
+Changes with an API, data or flow impact start with a design doc in `docs/design/`; decisions go in `docs/adr/`.
+`CONTRIBUTING.md` holds the definition of done and review checklist. `main` is protected: work goes through pull requests.
+
 ## Known gaps / candidate next work
 
-- `process()` sets `SUCCESS` unconditionally; there is no state machine and no `FAILED` status.
+- Idempotency keys never expire and are global (no auth, so no per-client scope).
 - Published outbox rows are never cleaned up.
 - No Actuator/health checks, auth, or metrics.
 - No Failsafe plugin, so the IT is not run by `mvn verify` or in CI.

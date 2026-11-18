@@ -32,7 +32,7 @@ export default function TransactionDetail({ id }: { id: string }) {
         setNow(Date.now());
         setProblem(null);
         setPolls((n) => n + 1);
-        if (next.status === "SUCCESS") return;
+        if (next.status !== "PENDING") return; // SUCCESS and FAILED are terminal
         if (Date.now() - started.current > GIVE_UP_MS) {
           setStalled(true);
           return;
@@ -54,7 +54,7 @@ export default function TransactionDetail({ id }: { id: string }) {
 
   // Re-render once a second so the elapsed time counts up while PENDING.
   useEffect(() => {
-    if (tx?.status === "SUCCESS") return;
+    if (tx?.status !== undefined && tx?.status !== "PENDING") return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [tx?.status]);

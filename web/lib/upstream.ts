@@ -2,6 +2,8 @@ import type { Problem } from "./types";
 
 /** Server-only: forwards a request to the Java API on Lambda. The base URL never reaches the browser. */
 const TIMEOUT_MS = 10_000;
+/** Response headers from the API that the browser may need. */
+const PASS_THROUGH = ["idempotent-replayed"];
 
 export function apiBaseUrl(): string {
   const url = process.env.API_BASE_URL;
@@ -28,10 +30,12 @@ export async function forward(path: string, init: RequestInit = {}, fetchImpl: t
     try {
       const res = await fetchImpl(url, { ...init, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
       const body = await res.text();
-      return new Response(body, {
-        status: res.status,
-        headers: { "content-type": res.headers.get("content-type") ?? "application/json", "cache-control": "no-store" },
-      });
+      const headers = new Headers({ "content-type": res.headers.get("content-type") ?? "application/json", "cache-control": "no-store" });
+      for (const name of PASS_THROUGH) {
+        const value = res.headers.get(name);
+        if (value) headers.set(name, value);
+      }
+      return new Response(body, { status: res.status, headers });
     } catch (e) {
       if (attempt >= 2) {
         const timedOut = e instanceof DOMException && e.name === "TimeoutError";

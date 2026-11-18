@@ -18,6 +18,9 @@ export const createSchema = z
 
 export type CreateInput = z.infer<typeof createSchema>;
 
+/** Same rule as the API: 1-255 visible ASCII characters. */
+export const IDEMPOTENCY_KEY_RE = /^[\x21-\x7E]{1,255}$/;
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Field -> first message, the same shape as the API's `errors` map. */

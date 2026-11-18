@@ -14,6 +14,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
+import org.springframework.http.ResponseEntity;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -28,18 +33,37 @@ public class TransactionController {
     private final TransactionService service;
     public TransactionController(TransactionService service) { this.service = service; }
 
+    public static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+    public static final String REPLAYED = "Idempotent-Replayed";
+
     @PostMapping
-    @ResponseStatus(HttpStatus.ACCEPTED)
     @Operation(operationId = "createTransaction", summary = "Create a transaction",
             description = "Stores the transaction as PENDING and queues it for asynchronous processing. "
-                    + "Poll GET /transactions/{id} until the status becomes SUCCESS.")
-    @ApiResponse(responseCode = "202", description = "Accepted; processing is asynchronous")
-    @ApiResponse(responseCode = "400", description = "Validation failed or malformed JSON; `errors` maps field to message",
+                    + "Poll GET /transactions/{id} until the status is SUCCESS or FAILED. "
+                    + "Send an Idempotency-Key to make retries safe: repeating a request with the same key and body "
+                    + "returns the original transaction instead of creating a new one.")
+    @ApiResponse(responseCode = "202", description = "Accepted; processing is asynchronous. A repeated Idempotency-Key "
+            + "returns the existing transaction in its current state",
+            headers = @Header(name = REPLAYED, description = "\"true\" when the response is a replay for a repeated "
+                    + "Idempotency-Key", schema = @Schema(type = "string", allowableValues = "true")))
+    @ApiResponse(responseCode = "400", description = "Validation failed, malformed JSON or malformed Idempotency-Key; "
+            + "`errors` maps field or header to message",
             content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ApiProblem.class)))
-    @ApiResponse(responseCode = "409", description = "Invoice already exists",
+    @ApiResponse(responseCode = "409", description = "Invoice already exists, or the Idempotency-Key was already used "
+            + "with a different request",
             content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ApiProblem.class)))
-    public TransactionResponse create(@Valid @RequestBody CreateRequest request) {
-        return TransactionResponse.from(service.create(request.invoice(), request.amount(), request.phoneNumber()));
+    public ResponseEntity<TransactionResponse> create(
+            @Parameter(in = ParameterIn.HEADER, name = IDEMPOTENCY_KEY, description = "Optional client-generated key, "
+                    + "1-255 visible ASCII characters (a UUID per logical request is recommended)",
+                    example = "6f1c2b9e-3d4a-4c3e-9a51-0d2f7b8e4c11")
+            @RequestHeader(value = IDEMPOTENCY_KEY, required = false)
+            @Size(min = 1, max = 255) @Pattern(regexp = "[\\x21-\\x7E]+", message = "must be visible ASCII characters")
+            String idempotencyKey,
+            @Valid @RequestBody CreateRequest request) {
+        var result = service.create(request.invoice(), request.amount(), request.phoneNumber(), idempotencyKey);
+        var response = ResponseEntity.status(HttpStatus.ACCEPTED);
+        if (result.replayed()) response.header(REPLAYED, "true");
+        return response.body(TransactionResponse.from(result.transaction()));
     }
 
     @GetMapping

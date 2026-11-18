@@ -14,8 +14,23 @@ async function parse<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-export async function createTransaction(input: { invoice: string; amount: number; phoneNumber: string }): Promise<Transaction> {
-  return parse(await fetch("/api/transactions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }));
+export interface CreateOutcome {
+  transaction: Transaction;
+  /** True when the API recognised the Idempotency-Key and returned the existing transaction. */
+  replayed: boolean;
+}
+
+export async function createTransaction(
+  input: { invoice: string; amount: number; phoneNumber: string },
+  idempotencyKey?: string,
+): Promise<CreateOutcome> {
+  const res = await fetch("/api/transactions", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}) },
+    body: JSON.stringify(input),
+  });
+  const replayed = res.headers.get("idempotent-replayed") === "true";
+  return { transaction: await parse<Transaction>(res), replayed };
 }
 
 export async function getTransaction(id: string): Promise<Transaction> {

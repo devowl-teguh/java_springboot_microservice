@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSchema, fieldErrors, UUID_RE } from "@/lib/schema";
+import { createSchema, fieldErrors, IDEMPOTENCY_KEY_RE, UUID_RE } from "@/lib/schema";
 
 const valid = { invoice: "INV-1", amount: 12500, phoneNumber: "08123456789" };
 
@@ -27,6 +27,16 @@ describe("createSchema", () => {
     expect(createSchema.safeParse({ ...valid, admin: true }).success).toBe(false);
     expect(createSchema.safeParse({ ...valid, invoice: "x".repeat(101) }).success).toBe(false);
     expect(createSchema.safeParse({ ...valid, phoneNumber: "1".repeat(31) }).success).toBe(false);
+  });
+});
+
+describe("IDEMPOTENCY_KEY_RE", () => {
+  it("accepts 1-255 visible ASCII characters, like the API", () => {
+    expect(IDEMPOTENCY_KEY_RE.test(crypto.randomUUID())).toBe(true);
+    expect(IDEMPOTENCY_KEY_RE.test("k".repeat(255))).toBe(true);
+    expect(IDEMPOTENCY_KEY_RE.test("k".repeat(256))).toBe(false);
+    expect(IDEMPOTENCY_KEY_RE.test("has space")).toBe(false);
+    expect(IDEMPOTENCY_KEY_RE.test("")).toBe(false);
   });
 });
 

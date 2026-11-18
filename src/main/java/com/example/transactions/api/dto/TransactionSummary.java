@@ -12,11 +12,11 @@ public record TransactionSummary(
         @Schema(example = "INV-001") String invoice,
         @Schema(example = "12500.00") BigDecimal amount,
         @Schema(example = "0812****789") String phoneNumber,
-        @Schema(allowableValues = {"PENDING", "SUCCESS"}, example = "SUCCESS") String status,
+        @Schema(allowableValues = {"PENDING", "SUCCESS", "FAILED"}, example = "SUCCESS") String status,
         @Schema(example = "2026-11-14T10:15:30Z") Instant createdAt) {
     public static TransactionSummary from(Transaction t) {
         return new TransactionSummary(t.getId(), t.getInvoice(), t.getAmount(), mask(t.getPhoneNumber()),
-                t.getStatus(), t.getCreatedAt());
+                t.getStatus().name(), t.getCreatedAt());
     }
 
     /** Keeps the first 4 and last 3 characters ("0812****789"); short values keep only the last 2. */
