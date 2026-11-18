@@ -1,4 +1,4 @@
-import { createSchema, fieldErrors } from "@/lib/schema";
+import { createSchema, fieldErrors, IDEMPOTENCY_KEY_RE } from "@/lib/schema";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { forward, problem } from "@/lib/upstream";
 
@@ -21,10 +21,14 @@ export async function POST(request: Request) {
   }
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) return problem(400, "Request validation failed", fieldErrors(parsed.error));
+  const key = request.headers.get("idempotency-key");
+  if (key !== null && !IDEMPOTENCY_KEY_RE.test(key)) {
+    return problem(400, "Request validation failed", { "Idempotency-Key": "must be 1-255 visible ASCII characters" });
+  }
 
   return forward("/transactions", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(key ? { "idempotency-key": key } : {}) },
     body: JSON.stringify(parsed.data),
   });
 }

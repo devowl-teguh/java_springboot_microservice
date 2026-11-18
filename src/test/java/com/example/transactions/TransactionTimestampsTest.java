@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.transactions.api.dto.TransactionSummary;
 import com.example.transactions.domain.Transaction;
+import com.example.transactions.domain.TransactionStatus;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,7 @@ class TransactionTimestampsTest {
         Thread.sleep(5);
         tx.complete();
         assertThat(tx.getCompletedAt()).isEqualTo(first);
-        assertThat(tx.getStatus()).isEqualTo("SUCCESS");
+        assertThat(tx.getStatus()).isEqualTo(TransactionStatus.SUCCESS);
     }
 
     @Test void phoneMasking() {

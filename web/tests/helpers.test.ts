@@ -33,7 +33,7 @@ describe("duration", () => {
 describe("timeline stages", () => {
   const base: Transaction = {
     id: "x", invoice: "INV-1", amount: 1, phoneNumber: "0812", status: "PENDING",
-    createdAt: "2026-01-01T00:00:00Z", publishedAt: null, completedAt: null,
+    createdAt: "2026-01-01T00:00:00Z", publishedAt: null, completedAt: null, failureReason: null,
   };
   const states = (tx: Transaction) => stages(tx).map((s) => s.state);
 
@@ -42,6 +42,13 @@ describe("timeline stages", () => {
     expect(states({ ...base, publishedAt: "2026-01-01T00:00:40Z" })).toEqual(["done", "done", "now", "todo"]);
     expect(states({ ...base, status: "SUCCESS", publishedAt: "2026-01-01T00:00:40Z", completedAt: "2026-01-01T00:00:41Z" }))
       .toEqual(["done", "done", "done", "done"]);
+  });
+
+  it("ends in a failed step with the reason when FAILED", () => {
+    const failed = { ...base, status: "FAILED" as const, publishedAt: "2026-01-01T00:00:40Z", completedAt: "2026-01-01T00:00:41Z",
+      failureReason: "Amount exceeds the processor limit of 100,000,000.00" };
+    expect(states(failed)).toEqual(["done", "done", "done", "failed"]);
+    expect(stages(failed)[3].body).toBe("Amount exceeds the processor limit of 100,000,000.00");
   });
 
   it("treats SUCCESS without timestamps (older rows) as fully done", () => {

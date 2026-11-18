@@ -15,6 +15,13 @@ describe("forward", () => {
     expect(await res.text()).toBe(body);
   });
 
+  it("passes the Idempotent-Replayed header through to the browser", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202, headers: { "idempotent-replayed": "true", "x-internal": "secret" } }));
+    const res = await forward("/transactions", { method: "POST" }, fetchImpl as unknown as typeof fetch);
+    expect(res.headers.get("idempotent-replayed")).toBe("true");
+    expect(res.headers.get("x-internal")).toBeNull();
+  });
+
   it("retries once on a network error (cold start), then succeeds", async () => {
     const fetchImpl = vi.fn()
       .mockRejectedValueOnce(new TypeError("fetch failed"))

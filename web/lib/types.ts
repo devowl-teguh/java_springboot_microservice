@@ -1,4 +1,4 @@
-export type Status = "PENDING" | "SUCCESS";
+export type Status = "PENDING" | "SUCCESS" | "FAILED";
 
 export interface Transaction {
   id: string;
@@ -9,10 +9,11 @@ export interface Transaction {
   createdAt: string;
   publishedAt: string | null;
   completedAt: string | null;
+  failureReason: string | null;
 }
 
 /** Item of GET /transactions; the API masks the phone number. */
-export type TransactionSummary = Omit<Transaction, "publishedAt" | "completedAt">;
+export type TransactionSummary = Omit<Transaction, "publishedAt" | "completedAt" | "failureReason">;
 
 /** RFC 7807 body returned by the Java API (and by our proxy for its own errors). */
 export interface Problem {

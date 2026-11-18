@@ -14,7 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -32,7 +35,7 @@ class TransactionFlowIT {
     @Autowired TestRestTemplate http;
     @Autowired KafkaTemplate<String, String> kafkaTemplate;
 
-    record Tx(UUID id, String invoice, String status) {}
+    record Tx(UUID id, String invoice, String status, String failureReason) {}
 
     @Test
     void createdTransactionIsProcessedToSuccess() {
@@ -44,6 +47,38 @@ class TransactionFlowIT {
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
                 assertThat(http.getForObject("/transactions/" + created.getBody().id(), Tx.class).status())
                         .isEqualTo("SUCCESS"));
+    }
+
+    @Test
+    void amountAboveProcessorLimitEndsFailedThroughKafka() {
+        var created = http.postForEntity("/transactions",
+                Map.of("invoice", "INV-IT-REJECT", "amount", "150000000.00", "phoneNumber", "0812"), Tx.class);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            var tx = http.getForObject("/transactions/" + created.getBody().id(), Tx.class);
+            assertThat(tx.status()).isEqualTo("FAILED");
+            assertThat(tx.failureReason()).isEqualTo("Amount exceeds the processor limit of 100,000,000.00");
+        });
+    }
+
+    @Test
+    void idempotencyKeyReplaysOverHttp() {
+        var headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Idempotency-Key", "it-key-" + UUID.randomUUID());
+        var body = Map.of("invoice", "INV-IT-IDEM", "amount", "10.00", "phoneNumber", "0812");
+
+        var first = http.postForEntity("/transactions", new HttpEntity<>(body, headers), Tx.class);
+        var second = http.postForEntity("/transactions", new HttpEntity<>(body, headers), Tx.class);
+        var changed = http.postForEntity("/transactions",
+                new HttpEntity<>(Map.of("invoice", "INV-IT-IDEM", "amount", "11.00", "phoneNumber", "0812"), headers), String.class);
+
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(first.getHeaders().containsKey("Idempotent-Replayed")).isFalse();
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(second.getHeaders().getFirst("Idempotent-Replayed")).isEqualTo("true");
+        assertThat(second.getBody().id()).isEqualTo(first.getBody().id());
+        assertThat(changed.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test

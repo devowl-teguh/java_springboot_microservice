@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import ProblemAlert from "./ProblemAlert";
 import { ApiError, createTransaction, listRecent } from "@/lib/client";
 import { newInvoice } from "@/lib/invoice";
-import { createSchema, fieldErrors } from "@/lib/schema";
+import { createSchema, fieldErrors, MAX_AMOUNT } from "@/lib/schema";
 import type { Problem } from "@/lib/types";
 
 let cachedInvoice: string | null = null;
@@ -24,6 +24,15 @@ export default function CreateForm() {
   const [problem, setProblem] = useState<Problem | null>(null);
   const [busy, setBusy] = useState(false);
   const [slow, setSlow] = useState(false);
+  // One Idempotency-Key per logical request: reused when the same body is retried after a timeout or server error,
+  // replaced when the body changes. A double click or a retry therefore never creates a second transaction.
+  const pendingKey = useRef<{ body: string; key: string } | null>(null);
+
+  function keyFor(body: object): string {
+    const serialized = JSON.stringify(body);
+    if (pendingKey.current?.body !== serialized) pendingKey.current = { body: serialized, key: crypto.randomUUID() };
+    return pendingKey.current.key;
+  }
 
   async function send(body: { invoice: string; amount: number; phoneNumber: string }, skipLocalCheck = false) {
     setProblem(null);
@@ -38,10 +47,15 @@ export default function CreateForm() {
     setBusy(true);
     const timer = setTimeout(() => setSlow(true), 2000);
     try {
-      const tx = await createTransaction(body);
-      router.push(`/transactions/${tx.id}`);
+      const { transaction } = await createTransaction(body, keyFor(body));
+      pendingKey.current = null;
+      cachedInvoice = null; // the next visit to the form gets a fresh invoice
+      router.push(`/transactions/${transaction.id}`);
     } catch (e) {
-      setProblem(e instanceof ApiError ? e.problem : { status: 0, detail: "Couldn't reach the server. Check your connection." });
+      const p = e instanceof ApiError ? e.problem : { status: 0, detail: "Couldn't reach the server. Check your connection." };
+      // A definite client error means the request will never succeed as is: the next attempt is a new request.
+      if (p.status >= 400 && p.status < 500 && p.status !== 429) pendingKey.current = null;
+      setProblem(p);
     } finally {
       clearTimeout(timer);
       setBusy(false);
@@ -107,11 +121,22 @@ export default function CreateForm() {
         <button type="button" className="btn" disabled={busy} onClick={() => send({ invoice: "", amount: -1, phoneNumber: "" }, true)}>
           Try invalid input (400)
         </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || !invoice}
+          title="Amounts above 100,000,000 are rejected by the simulated payment processor"
+          onClick={() => send({ invoice: invoice.trim(), amount: Math.min(150_000_000, MAX_AMOUNT), phoneNumber: phone.trim() })}
+        >
+          Try a rejected payment
+        </button>
       </div>
       <p className="text-xs text-faint">
-        The two &ldquo;Try&rdquo; buttons skip the form&rsquo;s own checks and send the request anyway, so you see the
-        server&rsquo;s RFC 7807 error response. The 409 comes from the Java API; invalid input is rejected by the site&rsquo;s
-        server with the same rules before it reaches Java.
+        The 409 and 400 buttons skip the form&rsquo;s own checks so you see the server&rsquo;s RFC 7807 error response (the 409
+        comes from the Java API; invalid input is rejected by the site&rsquo;s server with the same rules). &ldquo;Try a rejected
+        payment&rdquo; creates a transaction above the simulated processor limit of 100,000,000, which ends{" "}
+        <b className="font-medium text-danger">FAILED</b>. Every create sends an <code className="font-mono">Idempotency-Key</code>,
+        so retries never create duplicates.
       </p>
     </form>
   );

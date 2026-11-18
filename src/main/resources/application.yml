@@ -24,6 +24,8 @@ spring:
     producer:
       acks: all
 app:
+  # Simulated downstream rule (Design 0001): amounts above this are rejected and the transaction ends FAILED.
+  processor-limit: ${APP_PROCESSOR_LIMIT:100000000.00}
   kafka:
     topic: ${KAFKA_TOPIC:transactions-v1}
   openapi:
