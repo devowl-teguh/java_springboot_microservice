@@ -135,6 +135,11 @@ curl -X POST localhost:8080/transactions -H 'Content-Type: application/json' \
 
 What Compose starts: Kafka 3.8 (KRaft, `localhost:9092`), a one-shot job that creates `transactions-v1` and `transactions-v1.DLT` (3 partitions each), Postgres 16 on `localhost:5433` (profile `local-db`; port 5433 avoids clashing with a Postgres already on 5432), and the app on `localhost:8080` (profile `app`).
 
+## Design and engineering standards
+
+- [Design docs and ADRs](docs/README.md): every change with an API, data or flow impact starts with a design doc (scope, API contract, sequence diagrams, test plan); architecture decisions are recorded as ADRs.
+- [CONTRIBUTING.md](CONTRIBUTING.md): pull request workflow, definition of done and the code review checklist.
+
 ## Requirements for other environments
 
 Java 21, PostgreSQL, and a Kafka broker. The database user must be allowed to create the `transaction_service` schema and its tables; Flyway creates them on startup. Use a test database, or get the right permissions, before connecting to an existing database. On Supabase, use the session pooler (port 5432), not the transaction pooler (6543), which breaks Flyway.

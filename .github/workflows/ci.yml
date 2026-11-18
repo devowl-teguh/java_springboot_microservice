@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths-ignore: ['web/**', 'docs/**/*.md', '*.md']
+  # Always run on pull requests so the required "Unit tests" check is reported even for web- or docs-only changes.
   pull_request:
-    paths-ignore: ['web/**', 'docs/**/*.md', '*.md']
 
 jobs:
   unit-tests:
