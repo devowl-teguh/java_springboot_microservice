@@ -17,6 +17,9 @@ import java.util.ArrayList;
 import com.example.transactions.domain.CreateResult;
 import com.example.transactions.domain.OutboxRepository;
 import com.example.transactions.domain.TransactionRepository;
+import com.example.transactions.domain.DuplicateInvoiceException;
+import com.example.transactions.domain.MemberService;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -47,7 +50,7 @@ class AwsModeIT {
 
     @Test
     void outboxGoesToSqsAndConsumerCompletesTransaction() {
-        var tx = service.create("INV-AWS-1", new BigDecimal("9.99"), "0812");
+        var tx = service.create("INV-AWS-1", new BigDecimal("9.99"), "08123456789");
 
         assertThat(outbox.publish()).isEqualTo(1);
         var sent = ArgumentCaptor.forClass(SendMessageRequest.class);
@@ -82,7 +85,7 @@ class AwsModeIT {
         for (int i = 0; i < threads; i++) {
             futures.add(pool.submit(() -> {
                 start.await();
-                return service.create("INV-RACE-" + key, new BigDecimal("5.00"), "0812", key);
+                return service.create("INV-RACE-" + key, new BigDecimal("5.00"), "08123456789", key);
             }));
         }
         start.countDown();
@@ -101,7 +104,7 @@ class AwsModeIT {
 
     @Test
     void rejectedAmountEndsFailedThroughSqsPath() {
-        var tx = service.create("INV-AWS-REJECT", new BigDecimal("150000000.00"), "0812");
+        var tx = service.create("INV-AWS-REJECT", new BigDecimal("150000000.00"), "08123456789");
         outbox.publish();
         var message = new SQSEvent.SQSMessage();
         message.setMessageId("m-reject");
@@ -113,5 +116,66 @@ class AwsModeIT {
         var done = service.get(tx.getId());
         assertThat(done.getStatus()).isEqualTo(TransactionStatus.FAILED);
         assertThat(done.getFailureReason()).startsWith("Amount exceeds the processor limit");
+    }
+
+    @Autowired MemberService members;
+
+    private int memberCount(String phone) {
+        return jdbc.queryForObject("select count(*) from transaction_service.members where phone_number = ?", Integer.class, phone);
+    }
+
+    @Test
+    void firstTransactionCreatesMemberAndLaterFormatsReuseIt() {
+        String suffix = String.valueOf(System.nanoTime() % 100_000_000);
+        String phone = "62812" + String.format("%08d", Long.parseLong(suffix)).substring(0, 7);
+        var first = service.create("INV-M1-" + suffix, new BigDecimal("1.00"), "0" + phone.substring(2));
+        var second = service.create("INV-M2-" + suffix, new BigDecimal("2.00"), "+62 " + phone.substring(2, 5) + "-" + phone.substring(5));
+
+        assertThat(first.getPhoneNumber()).isEqualTo(phone);
+        assertThat(second.getMemberId()).isEqualTo(first.getMemberId()).isNotNull();
+        assertThat(memberCount(phone)).isEqualTo(1);
+        assertThat(members.history(first.getMemberId())).extracting(t -> t.getInvoice())
+                .containsExactly("INV-M2-" + suffix, "INV-M1-" + suffix);
+    }
+
+    @Test
+    void concurrentFirstTransactionsForOnePhoneCreateOneMember() throws Exception {
+        String phone = "62813" + String.format("%07d", System.nanoTime() % 10_000_000);
+        int threads = 8;
+        var start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(threads);
+        var futures = new ArrayList<Future<com.example.transactions.domain.Transaction>>();
+        for (int i = 0; i < threads; i++) {
+            int n = i;
+            futures.add(pool.submit(() -> {
+                start.await();
+                return service.create("INV-MRACE-" + phone + "-" + n, new BigDecimal("1.00"), phone);
+            }));
+        }
+        start.countDown();
+        var memberIds = new java.util.HashSet<java.util.UUID>();
+        for (var f : futures) memberIds.add(f.get().getMemberId());
+        pool.shutdown();
+
+        assertThat(memberIds).hasSize(1);
+        assertThat(memberCount(phone)).isEqualTo(1);
+    }
+
+    @Test
+    void failedCreateLeavesNoOrphanMember() {
+        String phone = "62814" + String.format("%07d", System.nanoTime() % 10_000_000);
+        service.create("INV-ORPHAN-" + phone, new BigDecimal("1.00"), "08123456789");
+        assertThatThrownBy(() -> service.create("INV-ORPHAN-" + phone, new BigDecimal("1.00"), phone))
+                .isInstanceOf(DuplicateInvoiceException.class);
+        assertThat(memberCount(phone)).isZero();
+    }
+
+    @Test
+    void idempotentReplayTreatsLocalAndCountryCodeFormsAsTheSameBody() {
+        String key = "fmt-" + java.util.UUID.randomUUID();
+        var first = service.create("INV-FMT-" + key, new BigDecimal("3.00"), "08123456789", key);
+        var again = service.create("INV-FMT-" + key, new BigDecimal("3.00"), "628123456789", key);
+        assertThat(again.replayed()).isTrue();
+        assertThat(again.transaction().getId()).isEqualTo(first.transaction().getId());
     }
 }

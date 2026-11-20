@@ -16,24 +16,33 @@ import org.springframework.transaction.support.TransactionOperations;
 /** Service-level rules from Design 0001; concurrency against real Postgres is covered in AwsModeIT. */
 class IdempotentCreateTest {
     private static final BigDecimal AMOUNT = new BigDecimal("12500.00");
+    /** Stored (normalized) form; requests below use the local form 0812…, which must count as the same request. */
+    private static final String PHONE = "628123456789";
+    private static final String LOCAL = "08123456789";
     private TransactionRepository repo;
     private OutboxRepository outbox;
+    private MemberService members;
     private TransactionService service;
 
     @BeforeEach void setUp() {
         repo = mock(TransactionRepository.class);
         outbox = mock(OutboxRepository.class);
+        members = mock(MemberService.class);
         when(repo.saveAndFlush(any(Transaction.class))).thenAnswer(i -> i.getArgument(0));
-        service = new TransactionService(repo, outbox, TransactionOperations.withoutTransaction(), new BigDecimal("100000000.00"));
+        service = new TransactionService(repo, outbox, members, TransactionOperations.withoutTransaction(), new BigDecimal("100000000.00"));
     }
 
     private static Transaction stored(String key, String invoice, BigDecimal amount) {
-        return new Transaction(invoice, amount, "0812", key, RequestFingerprint.of(invoice, amount, "0812"));
+        return new Transaction(invoice, amount, PHONE, key, RequestFingerprint.of(invoice, amount, PHONE));
     }
 
     @Test void newKeyCreatesTransactionAndOutboxEvent() {
-        var result = service.create("INV-1", AMOUNT, "0812", "key-1");
+        var memberId = java.util.UUID.randomUUID();
+        when(members.findOrCreate(PHONE)).thenReturn(memberId);
+        var result = service.create("INV-1", AMOUNT, LOCAL, "key-1");
         assertThat(result.replayed()).isFalse();
+        assertThat(result.transaction().getPhoneNumber()).isEqualTo(PHONE);
+        assertThat(result.transaction().getMemberId()).isEqualTo(memberId);
         assertThat(result.transaction().getIdempotencyKey()).isEqualTo("key-1");
         verify(outbox).save(any(Outbox.class));
     }
@@ -42,7 +51,7 @@ class IdempotentCreateTest {
         var existing = stored("key-1", "INV-1", AMOUNT);
         when(repo.findByIdempotencyKey("key-1")).thenReturn(Optional.of(existing));
 
-        var result = service.create(" INV-1 ", new BigDecimal("12500"), "0812", "key-1");
+        var result = service.create(" INV-1 ", new BigDecimal("12500"), "+62 812-3456-789", "key-1");
 
         assertThat(result.replayed()).isTrue();
         assertThat(result.transaction()).isSameAs(existing);
@@ -52,7 +61,7 @@ class IdempotentCreateTest {
 
     @Test void repeatedKeyWithDifferentBodyIsRejected() {
         when(repo.findByIdempotencyKey("key-1")).thenReturn(Optional.of(stored("key-1", "INV-1", AMOUNT)));
-        assertThatThrownBy(() -> service.create("INV-1", new BigDecimal("1.00"), "0812", "key-1"))
+        assertThatThrownBy(() -> service.create("INV-1", new BigDecimal("1.00"), LOCAL, "key-1"))
                 .isInstanceOf(IdempotencyKeyMismatchException.class);
         verify(repo, never()).saveAndFlush(any());
     }
@@ -62,7 +71,7 @@ class IdempotentCreateTest {
         when(repo.findByIdempotencyKey("key-1")).thenReturn(Optional.empty(), Optional.of(winner));
         when(repo.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("unique idempotency_key"));
 
-        var result = service.create("INV-1", AMOUNT, "0812", "key-1");
+        var result = service.create("INV-1", AMOUNT, LOCAL, "key-1");
 
         assertThat(result.replayed()).isTrue();
         assertThat(result.transaction()).isSameAs(winner);
@@ -71,12 +80,12 @@ class IdempotentCreateTest {
     @Test void takenInvoiceWithANewKeyIsStillAConflict() {
         when(repo.findByIdempotencyKey("key-2")).thenReturn(Optional.empty());
         when(repo.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("unique invoice"));
-        assertThatThrownBy(() -> service.create("INV-1", AMOUNT, "0812", "key-2"))
+        assertThatThrownBy(() -> service.create("INV-1", AMOUNT, LOCAL, "key-2"))
                 .isInstanceOf(DuplicateInvoiceException.class);
     }
 
     @Test void withoutKeyNothingIsLookedUp() {
-        service.create("INV-1", AMOUNT, "0812", null);
+        service.create("INV-1", AMOUNT, LOCAL, null);
         verify(repo, never()).findByIdempotencyKey(any());
     }
 

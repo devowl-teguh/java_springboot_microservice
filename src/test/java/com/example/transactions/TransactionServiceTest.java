@@ -13,9 +13,9 @@ class TransactionServiceTest {
     @Test void processingTwiceIsIdempotent() {
         var repository = mock(TransactionRepository.class);
         var outbox = mock(OutboxRepository.class);
-        var transaction = new Transaction("INV-1", new BigDecimal("10.00"), "08123");
+        var transaction = new Transaction("INV-1", new BigDecimal("10.00"), "08123456789");
         when(repository.findById(transaction.getId())).thenReturn(Optional.of(transaction));
-        var service = new TransactionService(repository, outbox, TransactionOperations.withoutTransaction(), new BigDecimal("100000000.00"));
+        var service = new TransactionService(repository, outbox, mock(MemberService.class), TransactionOperations.withoutTransaction(), new BigDecimal("100000000.00"));
         service.process(transaction.getId());
         service.process(transaction.getId());
         assertEquals(TransactionStatus.SUCCESS, transaction.getStatus());
@@ -24,7 +24,7 @@ class TransactionServiceTest {
         var repository = mock(TransactionRepository.class);
         var outbox = mock(OutboxRepository.class);
         when(repository.saveAndFlush(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        var result = new TransactionService(repository, outbox, TransactionOperations.withoutTransaction(), new BigDecimal("100000000.00")).create("INV-1", new BigDecimal("10.00"), "08123");
+        var result = new TransactionService(repository, outbox, mock(MemberService.class), TransactionOperations.withoutTransaction(), new BigDecimal("100000000.00")).create("INV-1", new BigDecimal("10.00"), "08123456789");
         assertEquals(TransactionStatus.PENDING, result.getStatus());
         verify(outbox).save(any(Outbox.class));
     }

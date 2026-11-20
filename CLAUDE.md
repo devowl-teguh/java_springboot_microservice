@@ -32,10 +32,10 @@ so `APP_DB_URL` overrides `DB_URL` there. Tests also load `.env`, so keep test a
 
 | Layer | Files | Notes |
 |---|---|---|
-| `api` | `TransactionController`, `ApiExceptionHandler`, `dto/CreateRequest`, `dto/TransactionResponse`, `dto/TransactionSummary` | `POST /transactions` → 202, `GET /transactions/{id}` (includes `publishedAt`/`completedAt`), `GET /transactions?limit=1..50` (newest first, phone numbers masked). Entities never leave via the API; map through records. |
-| `domain` | `Transaction`, `TransactionStatus`, `Outbox`, repositories, `TransactionService`, `RequestFingerprint`, exceptions | Business logic in the service. `TransactionStatus` enum: `PENDING` → `SUCCESS` or `FAILED` (terminal; transitions only through `complete()`/`fail()`). |
+| `api` | `TransactionController`, `ApiExceptionHandler`, `dto/CreateRequest`, `dto/TransactionResponse`, `dto/TransactionSummary` | `POST /transactions` → 202, `GET /transactions/{id}` (includes `publishedAt`/`completedAt`), `GET /transactions?limit=1..50` (newest first, phone numbers masked); `MemberController`: `GET /members?limit=1..50` (masked), `GET /members/{id}` (full number + 50 latest transactions). `api/validation/IndonesianPhone` validates phone input. Entities never leave via the API; map through records. |
+| `domain` | `Transaction`, `TransactionStatus`, `Member`, `Outbox`, repositories, `TransactionService`, `MemberService`, `PhoneNumbers`, `RequestFingerprint`, exceptions | Business logic in the service. `TransactionStatus` enum: `PENDING` → `SUCCESS` or `FAILED` (terminal; transitions only through `complete()`/`fail()`). |
 | `messaging` | `OutboxPublisher`, `TransactionConsumer`, `KafkaErrorConfiguration` | Publisher is `@Scheduled` (`OUTBOX_DELAY_MS`, default 1000) and locks 100 rows with `FOR UPDATE SKIP LOCKED`. |
-| `resources` | `application.yml`, `db/migration/V1__…` to `V3__…` | Schema `transaction_service`; Hibernate `ddl-auto: validate`, so every entity change needs a Flyway migration (`V2__...`). |
+| `resources` | `application.yml`, `db/migration/V1__…` to `V4__…` | Schema `transaction_service`; Hibernate `ddl-auto: validate`, so every entity change needs a Flyway migration (`V2__...`). |
 
 ## Invariants to preserve
 
@@ -55,6 +55,11 @@ so `APP_DB_URL` overrides `DB_URL` there. Tests also load `.env`, so keep test a
   everything else retries with exponential backoff from 1s to 30s, capped at about 5 minutes.
 - The native query in `OutboxRepository` hard-codes the schema name `transaction_service`.
 - Money is `BigDecimal`, `NUMERIC(19,2)`, with a DB check `amount > 0`.
+- Phone numbers (Design 0002) are normalized by `PhoneNumbers` to `^62[1-9][0-9]{6,11}$` (Indonesia only; `0…`/`+62…` accepted,
+  separators ignored) before they are stored, returned or fingerprinted; `web/lib/phone.ts` mirrors the rule, keep both in sync.
+- Every transaction from `create` gets a member: `MemberService.findOrCreate` (`INSERT … ON CONFLICT DO NOTHING`, then select)
+  runs inside the same database transaction as the transaction and outbox insert (`Propagation.MANDATORY`), so no orphan
+  members and no unique-violation aborts under concurrency. Pre-V4 transactions have `member_id` NULL (no backfill).
 - Every error response is RFC 7807 `application/problem+json`. `ApiExceptionHandler` extends `ResponseEntityExceptionHandler`
   so Spring MVC's built-in errors use that format too. Validation 400s add an `errors` map from field to message and
   never echo rejected values. `TransactionControllerTest` (`@WebMvcTest`) covers this.

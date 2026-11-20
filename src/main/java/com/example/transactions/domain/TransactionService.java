@@ -21,12 +21,15 @@ public class TransactionService {
 
     private final TransactionRepository transactions;
     private final OutboxRepository outbox;
+    private final MemberService members;
     private final TransactionOperations tx;
     private final BigDecimal processorLimit;
 
-    public TransactionService(TransactionRepository transactions, OutboxRepository outbox, TransactionOperations tx,
+    public TransactionService(TransactionRepository transactions, OutboxRepository outbox, MemberService members,
+                              TransactionOperations tx,
                               @Value("${app.processor-limit:100000000.00}") BigDecimal processorLimit) {
-        this.transactions = transactions; this.outbox = outbox; this.tx = tx; this.processorLimit = processorLimit;
+        this.transactions = transactions; this.outbox = outbox; this.members = members; this.tx = tx;
+        this.processorLimit = processorLimit;
     }
 
     public Transaction create(String invoice, BigDecimal amount, String phoneNumber) {
@@ -38,7 +41,9 @@ public class TransactionService {
      * returns the existing transaction (replayed) and a different request with the same key is rejected.
      * Not @Transactional on purpose: a unique violation aborts its transaction, so the follow-up lookup needs a new one.
      */
-    public CreateResult create(String invoice, BigDecimal amount, String phoneNumber, String idempotencyKey) {
+    public CreateResult create(String invoice, BigDecimal amount, String rawPhoneNumber, String idempotencyKey) {
+        // Design 0002: store, return and fingerprint the normalized number, so 0812… and 62812… are the same person.
+        String phoneNumber = PhoneNumbers.normalizeOrThrow(rawPhoneNumber);
         String hash = idempotencyKey == null ? null : RequestFingerprint.of(invoice, amount, phoneNumber);
         if (idempotencyKey != null) {
             Optional<Transaction> existing = findByKey(idempotencyKey);
@@ -47,7 +52,10 @@ public class TransactionService {
         try {
             Transaction created = tx.execute(status -> {
                 // Flush now so a duplicate invoice or key fails here, not at commit time.
-                Transaction t = transactions.saveAndFlush(new Transaction(invoice, amount, phoneNumber, idempotencyKey, hash));
+                // Member, transaction and outbox row commit together: a failed insert leaves no orphan member.
+                UUID memberId = members.findOrCreate(phoneNumber);
+                Transaction t = transactions.saveAndFlush(
+                        new Transaction(invoice, amount, phoneNumber, idempotencyKey, hash, memberId));
                 outbox.save(new Outbox(t.getId()));
                 return t;
             });

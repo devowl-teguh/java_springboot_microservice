@@ -50,7 +50,7 @@ class ApiLambdaHandlerIT {
     @Test void createThenGetThroughLambda() throws Exception {
         String created = call(new AwsProxyRequestBuilder("/transactions", "POST")
                 .header("Content-Type", "application/json")
-                .body("{\"invoice\":\"INV-LAMBDA-1\",\"amount\":10.00,\"phoneNumber\":\"0812\"}"));
+                .body("{\"invoice\":\"INV-LAMBDA-1\",\"amount\":10.00,\"phoneNumber\":\"08123456789\"}"));
         assertThat(created).contains("\"statusCode\":202").contains("PENDING");
 
         String id = created.replaceAll("(?s).*\\\\\"id\\\\\":\\\\\"([0-9a-f-]{36}).*", "$1");

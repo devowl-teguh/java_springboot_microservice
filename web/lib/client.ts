@@ -1,4 +1,4 @@
-import type { Problem, Transaction, TransactionSummary } from "./types";
+import type { MemberDetail, MemberSummary, Problem, Transaction, TransactionSummary } from "./types";
 
 /** Browser-side calls to our own /api routes. */
 export class ApiError extends Error {
@@ -39,4 +39,12 @@ export async function getTransaction(id: string): Promise<Transaction> {
 
 export async function listRecent(limit = 10): Promise<TransactionSummary[]> {
   return parse(await fetch(`/api/transactions?limit=${limit}`, { cache: "no-store" }));
+}
+
+export async function listMembers(limit = 20): Promise<MemberSummary[]> {
+  return parse(await fetch(`/api/members?limit=${limit}`, { cache: "no-store" }));
+}
+
+export async function getMember(id: string): Promise<MemberDetail> {
+  return parse(await fetch(`/api/members/${encodeURIComponent(id)}`, { cache: "no-store" }));
 }

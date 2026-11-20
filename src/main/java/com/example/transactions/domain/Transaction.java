@@ -22,6 +22,8 @@ public class Transaction {
     @Column(name = "idempotency_key", unique = true, length = 255) private String idempotencyKey;
     @Column(name = "request_hash", length = 64) private String requestHash;
     @Column(name = "failure_reason", length = MAX_FAILURE_REASON) private String failureReason;
+    /** Null for transactions created before members existed (Design 0002: no backfill). */
+    @Column(name = "member_id") private UUID memberId;
 
     protected Transaction() {}
 
@@ -30,12 +32,17 @@ public class Transaction {
     }
 
     public Transaction(String invoice, BigDecimal amount, String phoneNumber, String idempotencyKey, String requestHash) {
+        this(invoice, amount, phoneNumber, idempotencyKey, requestHash, null);
+    }
+
+    public Transaction(String invoice, BigDecimal amount, String phoneNumber, String idempotencyKey, String requestHash,
+                       UUID memberId) {
         if ((idempotencyKey == null) != (requestHash == null)) {
             throw new IllegalArgumentException("idempotencyKey and requestHash must be set together");
         }
         this.id = UUID.randomUUID(); this.invoice = invoice; this.amount = amount; this.phoneNumber = phoneNumber;
         this.status = TransactionStatus.PENDING; this.createdAt = Instant.now();
-        this.idempotencyKey = idempotencyKey; this.requestHash = requestHash;
+        this.idempotencyKey = idempotencyKey; this.requestHash = requestHash; this.memberId = memberId;
     }
 
     /** PENDING -> SUCCESS. Idempotent; ignored once the transaction is terminal (a redelivered event changes nothing). */
@@ -66,4 +73,5 @@ public class Transaction {
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestHash() { return requestHash; }
     public String getFailureReason() { return failureReason; }
+    public UUID getMemberId() { return memberId; }
 }

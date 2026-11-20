@@ -11,7 +11,7 @@ public record TransactionSummary(
         @Schema(example = "3fa85f64-5717-4562-b3fc-2c963f66afa6") UUID id,
         @Schema(example = "INV-001") String invoice,
         @Schema(example = "12500.00") BigDecimal amount,
-        @Schema(example = "0812****789") String phoneNumber,
+        @Schema(example = "6281*****789") String phoneNumber,
         @Schema(allowableValues = {"PENDING", "SUCCESS", "FAILED"}, example = "SUCCESS") String status,
         @Schema(example = "2026-11-14T10:15:30Z") Instant createdAt) {
     public static TransactionSummary from(Transaction t) {
