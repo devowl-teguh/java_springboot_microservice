@@ -15,6 +15,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 
+    List<Transaction> findByMemberIdOrderByCreatedAtDesc(UUID memberId, Limit limit);
+
     /** Records the first hand-off to the broker; a re-published event keeps the original time. */
     @Modifying
     @Query("update Transaction t set t.publishedAt = :at where t.id = :id and t.publishedAt is null")

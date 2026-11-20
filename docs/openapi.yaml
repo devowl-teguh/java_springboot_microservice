@@ -9,9 +9,80 @@ servers:
 - description: Default server
   url: http://localhost:8080
 tags:
+- description: "People who have transacted, identified by a normalized phone number"
+  name: Members
 - description: Create transactions and track their asynchronous processing
   name: Transactions
 paths:
+  /members:
+    get:
+      description: Newest first. Members are created automatically by their first
+        transaction. Phone numbers are masked because this list is public.
+      operationId: listMembers
+      parameters:
+      - description: How many to return (1-50)
+        example: 10
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 10
+          maximum: 50
+          minimum: 1
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemberSummary"
+          description: Members
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: limit is outside 1..50
+      summary: List members
+      tags:
+      - Members
+  /members/{id}:
+    get:
+      operationId: getMember
+      parameters:
+      - description: "Member ID, e.g. from a transaction's memberId"
+        example: b1c7e4a2-8f3d-4e5a-9c61-2d7f0a3b8e94
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberDetail"
+          description: Member found
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: ID is not a valid UUID
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Member not found
+      summary: Get a member and their recent transactions
+      tags:
+      - Members
   /transactions:
     get:
       description: Newest first. Phone numbers are masked because this list is public.
@@ -157,7 +228,9 @@ components:
           minLength: 0
         phoneNumber:
           type: string
-          description: "Customer phone number, stored as provided"
+          description: "Indonesian phone number. Accepts 0812…, +62 812… or 62812…\
+            \ (spaces, dashes, dots and parentheses are ignored); stored and returned\
+            \ as 62…, and used to find or create the member"
           example: "08123456789"
           maxLength: 30
           minLength: 0
@@ -165,6 +238,42 @@ components:
       - amount
       - invoice
       - phoneNumber
+    MemberDetail:
+      type: object
+      description: "A member with the full phone number and their most recent transactions\
+        \ (newest first, up to 50)"
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-20T09:00:00Z
+        id:
+          type: string
+          format: uuid
+          example: b1c7e4a2-8f3d-4e5a-9c61-2d7f0a3b8e94
+        phoneNumber:
+          type: string
+          description: Normalized phone number
+          example: 628123456789
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionSummary"
+    MemberSummary:
+      type: object
+      description: A member in the public list; the phone number is masked
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-11-20T09:00:00Z
+        id:
+          type: string
+          format: uuid
+          example: b1c7e4a2-8f3d-4e5a-9c61-2d7f0a3b8e94
+        phoneNumber:
+          type: string
+          example: 6281*****789
     ProblemDetail:
       type: object
       description: RFC 7807 problem details
@@ -223,9 +332,16 @@ components:
         invoice:
           type: string
           example: INV-001
+        memberId:
+          type: string
+          format: uuid
+          description: Member who made the transaction; null for transactions created
+            before members existed
+          example: b1c7e4a2-8f3d-4e5a-9c61-2d7f0a3b8e94
         phoneNumber:
           type: string
-          example: "08123456789"
+          description: Normalized phone number
+          example: 628123456789
         publishedAt:
           type: string
           format: date-time
@@ -261,7 +377,7 @@ components:
           example: INV-001
         phoneNumber:
           type: string
-          example: 0812****789
+          example: 6281*****789
         status:
           type: string
           enum:

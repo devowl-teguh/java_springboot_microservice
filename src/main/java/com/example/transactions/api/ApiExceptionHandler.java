@@ -2,6 +2,7 @@ package com.example.transactions.api;
 
 import com.example.transactions.domain.DuplicateInvoiceException;
 import com.example.transactions.domain.IdempotencyKeyMismatchException;
+import com.example.transactions.domain.MemberNotFoundException;
 import com.example.transactions.domain.TransactionNotFoundException;
 import java.util.Map;
 import java.util.TreeMap;
@@ -32,6 +33,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DuplicateInvoiceException.class)
     ProblemDetail duplicate(DuplicateInvoiceException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Invoice already exists");
+    }
+
+    @ExceptionHandler(MemberNotFoundException.class)
+    ProblemDetail memberNotFound(MemberNotFoundException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Member not found");
     }
 
     @ExceptionHandler(IdempotencyKeyMismatchException.class)

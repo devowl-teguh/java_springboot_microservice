@@ -45,10 +45,10 @@ class TransactionControllerTest {
                 .andExpect(header().doesNotExist("Idempotent-Replayed"));
     }
 
-    private static final String BODY = "{\"invoice\":\"INV-1\",\"amount\":12500.00,\"phoneNumber\":\"0812\"}";
+    private static final String BODY = "{\"invoice\":\"INV-1\",\"amount\":12500.00,\"phoneNumber\":\"08123456789\"}";
 
     @Test void repeatedIdempotencyKeyIsAReplay() throws Exception {
-        var tx = new Transaction("INV-1", new BigDecimal("12500.00"), "0812");
+        var tx = new Transaction("INV-1", new BigDecimal("12500.00"), "08123456789");
         when(service.create(any(), any(), any(), eq("key-1"))).thenReturn(new CreateResult(tx, true));
         mvc.perform(post("/transactions").header("Idempotency-Key", "key-1")
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -79,7 +79,7 @@ class TransactionControllerTest {
     }
 
     @Test void failedTransactionIncludesReason() throws Exception {
-        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "0812");
+        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "08123456789");
         tx.fail("Amount exceeds the processor limit of 100,000,000.00");
         when(service.get(tx.getId())).thenReturn(tx);
         mvc.perform(get("/transactions/" + tx.getId()))
@@ -104,9 +104,27 @@ class TransactionControllerTest {
 
     @Test void tooManyFractionDigitsIsRejected() throws Exception {
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"invoice\":\"INV-1\",\"amount\":1.001,\"phoneNumber\":\"0812\"}"))
+                        .content("{\"invoice\":\"INV-1\",\"amount\":1.001,\"phoneNumber\":\"08123456789\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.amount").exists());
+    }
+
+    @Test void nonIndonesianPhoneIsRejected() throws Exception {
+        mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoice\":\"INV-1\",\"amount\":1.00,\"phoneNumber\":\"+1 415 555 0100\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.phoneNumber").value("must be an Indonesian phone number, e.g. 628123456789"));
+        verifyNoInteractions(service);
+    }
+
+    @Test void transactionIncludesMemberId() throws Exception {
+        var memberId = UUID.randomUUID();
+        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "628123456789", null, null, memberId);
+        when(service.get(tx.getId())).thenReturn(tx);
+        mvc.perform(get("/transactions/" + tx.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.memberId").value(memberId.toString()))
+                .andExpect(jsonPath("$.phoneNumber").value("628123456789"));
     }
 
     @Test void malformedJsonReturnsProblemDetail() throws Exception {
@@ -152,20 +170,20 @@ class TransactionControllerTest {
     }
 
     @Test void detailIncludesProcessingTimestamps() throws Exception {
-        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "0812");
+        var tx = new Transaction("INV-1", new BigDecimal("1.00"), "08123456789");
         tx.complete();
         when(service.get(tx.getId())).thenReturn(tx);
         mvc.perform(get("/transactions/" + tx.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.completedAt").exists())
-                .andExpect(jsonPath("$.phoneNumber").value("0812"));
+                .andExpect(jsonPath("$.phoneNumber").value("08123456789"));
     }
 
     @Test void duplicateInvoiceReturns409ProblemDetail() throws Exception {
         when(service.create(any(), any(), any(), any())).thenThrow(new DuplicateInvoiceException("INV-1", null));
         mvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"invoice\":\"INV-1\",\"amount\":1.00,\"phoneNumber\":\"0812\"}"))
+                        .content("{\"invoice\":\"INV-1\",\"amount\":1.00,\"phoneNumber\":\"08123456789\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").value("Invoice already exists"));

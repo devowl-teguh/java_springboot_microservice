@@ -52,7 +52,7 @@ class TransactionFlowIT {
     @Test
     void amountAboveProcessorLimitEndsFailedThroughKafka() {
         var created = http.postForEntity("/transactions",
-                Map.of("invoice", "INV-IT-REJECT", "amount", "150000000.00", "phoneNumber", "0812"), Tx.class);
+                Map.of("invoice", "INV-IT-REJECT", "amount", "150000000.00", "phoneNumber", "08123456789"), Tx.class);
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             var tx = http.getForObject("/transactions/" + created.getBody().id(), Tx.class);
@@ -66,12 +66,12 @@ class TransactionFlowIT {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Idempotency-Key", "it-key-" + UUID.randomUUID());
-        var body = Map.of("invoice", "INV-IT-IDEM", "amount", "10.00", "phoneNumber", "0812");
+        var body = Map.of("invoice", "INV-IT-IDEM", "amount", "10.00", "phoneNumber", "08123456789");
 
         var first = http.postForEntity("/transactions", new HttpEntity<>(body, headers), Tx.class);
         var second = http.postForEntity("/transactions", new HttpEntity<>(body, headers), Tx.class);
         var changed = http.postForEntity("/transactions",
-                new HttpEntity<>(Map.of("invoice", "INV-IT-IDEM", "amount", "11.00", "phoneNumber", "0812"), headers), String.class);
+                new HttpEntity<>(Map.of("invoice", "INV-IT-IDEM", "amount", "11.00", "phoneNumber", "08123456789"), headers), String.class);
 
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(first.getHeaders().containsKey("Idempotent-Replayed")).isFalse();
@@ -83,7 +83,7 @@ class TransactionFlowIT {
 
     @Test
     void duplicateInvoiceReturns409() {
-        var body = Map.of("invoice", "INV-IT-DUP", "amount", "1.00", "phoneNumber", "0812");
+        var body = Map.of("invoice", "INV-IT-DUP", "amount", "1.00", "phoneNumber", "08123456789");
         assertThat(http.postForEntity("/transactions", body, String.class).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(http.postForEntity("/transactions", body, String.class).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -109,7 +109,7 @@ class TransactionFlowIT {
         kafkaTemplate.send("transactions-v1", "poison", UUID.randomUUID().toString()).get();
 
         var created = http.postForEntity("/transactions",
-                Map.of("invoice", "INV-IT-AFTER-POISON", "amount", "5.00", "phoneNumber", "0812"), Tx.class);
+                Map.of("invoice", "INV-IT-AFTER-POISON", "amount", "5.00", "phoneNumber", "08123456789"), Tx.class);
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
                 assertThat(http.getForObject("/transactions/" + created.getBody().id(), Tx.class).status())
                         .isEqualTo("SUCCESS"));

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizePhone } from "./phone";
 
 /** Mirrors the Java CreateRequest rules, plus a demo-sized upper bound on amount. */
 export const MAX_AMOUNT = 1_000_000_000;
@@ -12,7 +13,12 @@ export const createSchema = z
       .max(MAX_AMOUNT, "Use an amount up to 1,000,000,000")
       // n * 100 must be a whole number; the tolerance absorbs float noise such as 0.07 * 100 = 7.000000000000001.
       .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "Use at most 2 decimal places"),
-    phoneNumber: z.string().trim().min(1, "Enter a phone number").max(30, "Use at most 30 characters"),
+    phoneNumber: z
+      .string()
+      .trim()
+      .min(1, "Enter a phone number")
+      .max(30, "Use at most 30 characters")
+      .refine((p) => normalizePhone(p) !== null, "Enter an Indonesian number, e.g. 08123456789 or 628123456789"),
   })
   .strict();
 

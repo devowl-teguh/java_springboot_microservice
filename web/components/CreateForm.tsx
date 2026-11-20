@@ -5,6 +5,7 @@ import { useRef, useState, useSyncExternalStore } from "react";
 import ProblemAlert from "./ProblemAlert";
 import { ApiError, createTransaction, listRecent } from "@/lib/client";
 import { newInvoice } from "@/lib/invoice";
+import { normalizePhone, PHONE_HINT } from "@/lib/phone";
 import { createSchema, fieldErrors, MAX_AMOUNT } from "@/lib/schema";
 import type { Problem } from "@/lib/types";
 
@@ -104,7 +105,11 @@ export default function CreateForm() {
         <label className="block text-sm">
           <span className="mb-1 block text-muted">Phone number</span>
           <input id="phone" className="field" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          {field("phoneNumber")}
+          {field("phoneNumber") ?? (
+            <p className="mt-1 text-xs text-faint">
+              {normalizePhone(phone) ? <>Member: <span className="font-mono">{normalizePhone(phone)}</span></> : PHONE_HINT}
+            </p>
+          )}
         </label>
       </div>
 

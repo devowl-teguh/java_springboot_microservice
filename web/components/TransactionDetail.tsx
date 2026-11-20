@@ -92,6 +92,17 @@ export default function TransactionDetail({ id }: { id: string }) {
           </div>
         ))}
       </div>
+      {tx.memberId ? (
+        <p className="text-sm text-muted">
+          Member:{" "}
+          <Link href={`/members/${tx.memberId}`} className="font-mono text-accent underline">
+            {tx.phoneNumber}
+          </Link>{" "}
+          · see all of this member&rsquo;s transactions
+        </p>
+      ) : (
+        <p className="text-xs text-faint">Created before members existed, so it has no member.</p>
+      )}
 
       <section className="card p-5">
         <h2 className="mb-2 text-sm font-medium text-muted">What is happening</h2>

@@ -10,10 +10,23 @@ export interface Transaction {
   publishedAt: string | null;
   completedAt: string | null;
   failureReason: string | null;
+  /** Null for transactions created before members existed. */
+  memberId: string | null;
 }
 
 /** Item of GET /transactions; the API masks the phone number. */
-export type TransactionSummary = Omit<Transaction, "publishedAt" | "completedAt" | "failureReason">;
+export type TransactionSummary = Omit<Transaction, "publishedAt" | "completedAt" | "failureReason" | "memberId">;
+
+/** Item of GET /members; the API masks the phone number. */
+export interface MemberSummary {
+  id: string;
+  phoneNumber: string;
+  createdAt: string;
+}
+
+export interface MemberDetail extends MemberSummary {
+  transactions: TransactionSummary[];
+}
 
 /** RFC 7807 body returned by the Java API (and by our proxy for its own errors). */
 export interface Problem {

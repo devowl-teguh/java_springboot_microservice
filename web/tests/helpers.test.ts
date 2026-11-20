@@ -33,7 +33,7 @@ describe("duration", () => {
 describe("timeline stages", () => {
   const base: Transaction = {
     id: "x", invoice: "INV-1", amount: 1, phoneNumber: "0812", status: "PENDING",
-    createdAt: "2026-01-01T00:00:00Z", publishedAt: null, completedAt: null, failureReason: null,
+    createdAt: "2026-01-01T00:00:00Z", publishedAt: null, completedAt: null, failureReason: null, memberId: null,
   };
   const states = (tx: Transaction) => stages(tx).map((s) => s.state);
 

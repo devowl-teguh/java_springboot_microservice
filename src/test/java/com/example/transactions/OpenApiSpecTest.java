@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.transactions.api.OpenApiConfiguration;
+import com.example.transactions.api.MemberController;
 import com.example.transactions.api.TransactionController;
+import com.example.transactions.domain.MemberService;
 import com.example.transactions.domain.TransactionService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -28,7 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * review and commit the updated file, then rerun.
  */
 // Pin the server URL so a local .env or OPENAPI_SERVER_URL cannot change the generated spec.
-@WebMvcTest(controllers = TransactionController.class, properties = "app.openapi.server-url=http://localhost:8080")
+@WebMvcTest(controllers = {TransactionController.class, MemberController.class}, properties = "app.openapi.server-url=http://localhost:8080")
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class, MultipleOpenApiSupportConfiguration.class})
 @Import(OpenApiConfiguration.class)
@@ -37,6 +39,7 @@ class OpenApiSpecTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean TransactionService service;
+    @MockitoBean MemberService members;
 
     @Test void committedSpecMatchesGeneratedSpec() throws Exception {
         String generated = mvc.perform(get("/v3/api-docs.yaml"))
