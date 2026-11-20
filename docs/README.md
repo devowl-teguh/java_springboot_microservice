@@ -6,7 +6,8 @@
 | [design/](design/) | Design docs for changes with an API, data or flow impact; agreed before implementation starts |
 | [adr/](adr/) | Architecture decision records: one decision, its context and consequences |
 
-Design docs: [0001 Idempotent creation and a FAILED status](design/0001-idempotency-and-failed-status.md)
+Design docs: [0001 Idempotent creation and a FAILED status](design/0001-idempotency-and-failed-status.md) ·
+[0002 Members and normalized phone numbers](design/0002-members.md)
 
 ADRs: [0001 Transactional outbox](adr/0001-transactional-outbox.md) ·
 [0002 Messaging port with Kafka and SQS](adr/0002-messaging-port-kafka-and-sqs.md) ·
