@@ -31,11 +31,11 @@ flowchart LR
 
 ## Deploy free on AWS (Lambda + SQS)
 
-**Demo website:** the [`web/`](web/) folder is a Next.js site where you can create a transaction and watch it move from `PENDING` to `SUCCESS` on a live timeline. It talks to the Lambda API through its own server routes. Vercel link: coming soon.
+**Demo website:** the [`web/`](web/) folder is a Next.js site where you can create a transaction and watch it move from `PENDING` to `SUCCESS` on a live timeline. It talks to the Lambda API through its own server routes. **Live: [web-seven-navy-29.vercel.app](https://web-seven-navy-29.vercel.app)** (create a transaction, try a rejected payment, browse members).
 
 **Live demo (AWS Lambda, us-east-1):**
 - **Try it in the browser:** [Swagger UI](https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws/swagger-ui/index.html). Open `POST /transactions`, click **Try it out**, change the invoice to something unique, and **Execute**. Then use the returned `id` in `GET /transactions/{id}`; the status changes from `PENDING` to `SUCCESS` within about a minute.
-- **API base URL:** `https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws`
+- **API base URL:** `https://szvtm226kimgrfzuc2etloccne0dcrmt.lambda-url.us-east-1.on.aws` (opening it in a browser redirects to Swagger UI)
 - The first request after a quiet period takes a few seconds while Lambda starts.
 
 The `aws` Spring profile replaces Kafka with SQS so the whole service fits in the AWS free tier.
